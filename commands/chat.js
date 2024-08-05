@@ -9,5 +9,5 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
 
 export async function execute(interaction) {
-  await interaction.reply(interaction.options._hoistedOptions[0].value)
+  await interaction.deferReply(interaction.options._hoistedOptions[0].value)
 }

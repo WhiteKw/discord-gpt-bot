@@ -2,11 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL  } from "node:url";
 import dotenv from "dotenv";
-import { Client, Collection, Events, GatewayIntentBits, REST, Routes } from "discord.js";
+import { Client, Collection, Events, GatewayIntentBits, REST, Routes, roleMention } from "discord.js";
+import OpenAI from "openai";
 
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const openai = new OpenAI();
 
 const client = new Client({
   intents: [
@@ -78,8 +81,39 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 })
 
-// client.on(Events.MessageCreate, async message => {
-//   console.log(message.content);
-// })
+client.on(Events.MessageCreate, async message => {
+  if (!message.content.startsWith(`<@${client.user.id}>`)) return;
+  const msg = message.content.replace(`<@${client.user.id}>`, "").trim();
+
+  const param = {
+    model: 'gpt-3.5-turbo',
+    temperature: 0.5,
+    n: 1,
+    messages: [
+      {
+        role: "user",
+        content: msg
+      }
+    ]
+  };
+
+  await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + process.env.OPENAI_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(param)
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log(data.choices[0].message);
+    message.reply(data.choices[0].message);
+  })
+  .catch(error => {
+    console.log('Something bad happened ' + error)
+    message.reply("Something bad happened");
+  });
+})
 
 client.login(process.env.DISCORD_BOT_TOKEN);
