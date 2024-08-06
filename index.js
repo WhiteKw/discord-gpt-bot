@@ -3,13 +3,12 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL  } from "node:url";
 import dotenv from "dotenv";
 import { Client, Collection, Events, GatewayIntentBits, REST, Routes, roleMention } from "discord.js";
-import OpenAI from "openai";
 
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const openai = new OpenAI();
+let messageHistory = [];
 
 const client = new Client({
   intents: [
@@ -85,11 +84,24 @@ client.on(Events.MessageCreate, async message => {
   if (!message.content.startsWith(`<@${client.user.id}>`)) return;
   const msg = message.content.replace(`<@${client.user.id}>`, "").trim();
 
+  if (messageHistory.length > 10) {
+    messageHistory = messageHistory.slice(-10);
+  }
+
+  let messageHistoryString = "";
+  messageHistory.forEach(item => {
+    messageHistoryString += item + "\n";
+  });
+
   const param = {
     model: 'gpt-3.5-turbo',
-    temperature: 0.5,
+    temperature: 0.7,
     n: 1,
     messages: [
+      {
+        role: "assistant",
+        content: messageHistoryString
+      },
       {
         role: "user",
         content: msg
@@ -107,7 +119,8 @@ client.on(Events.MessageCreate, async message => {
   })
   .then(response => response.json())
   .then(data => {
-    console.log(data.choices[0].message);
+    messageHistory.push(`User : ${msg}`);
+    messageHistory.push(`ChatBot : ${data.choices[0].message.content}`);
     message.reply(data.choices[0].message);
   })
   .catch(error => {
