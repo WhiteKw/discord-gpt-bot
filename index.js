@@ -2,13 +2,23 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL  } from "node:url";
 import dotenv from "dotenv";
-import { Client, Collection, Events, GatewayIntentBits, REST, Routes, roleMention } from "discord.js";
+import { Client, Collection, Events, GatewayIntentBits, REST, Routes } from "discord.js";
+import redis from "redis";
 
 dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let messageHistory = [];
+// Redis 연결
+const redisClient = redis.createClient({ legacyMode: true });
+redisClient.on("connect", () => {
+  console.log("Redis connected!");
+});
+redisClient.on("error", err => {
+  console.error("Redis client error", err);
+});
+redisClient.connect().then();
+const redisCli = redisClient.v4;
 
 const client = new Client({
   intents: [
@@ -68,7 +78,7 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 
   try {
-    await command.execute(interaction);
+    await command.execute(interaction, redisClient);
   } catch (error) {
     console.error(error);
 
@@ -82,26 +92,33 @@ client.on(Events.InteractionCreate, async interaction => {
 
 client.on(Events.MessageCreate, async message => {
   if (!message.content.startsWith(`<@${client.user.id}>`)) return;
-  const msg = message.content.replace(`<@${client.user.id}>`, "").trim();
 
-  if (messageHistory.length > 10) {
-    messageHistory = messageHistory.slice(-10);
+  const msg = message.content.replace(`<@${client.user.id}>`, "").trim();
+  const guildId = message.guildId;
+
+  let messageHistory = await redisClient.v4.get(guildId);
+
+  if (messageHistory === null || messageHistory === undefined) {
+    messageHistory = [];
+  } else {
+    messageHistory = JSON.parse(messageHistory);
+
+    if (messageHistory.length > 10) {
+      messageHistory = messageHistory.slice(-10);
+    }
   }
 
-  let messageHistoryString = "";
-  messageHistory.forEach(item => {
-    messageHistoryString += item + "\n";
-  });
-
+  const prompt = await redisClient.v4.get(`${guildId}_prompt`);
   const param = {
     model: 'gpt-3.5-turbo',
     temperature: 0.7,
     n: 1,
     messages: [
       {
-        role: "assistant",
-        content: messageHistoryString
+        role: "system",
+        content: prompt ?? "you are helpful assistant."
       },
+      ...messageHistory,
       {
         role: "user",
         content: msg
@@ -119,8 +136,9 @@ client.on(Events.MessageCreate, async message => {
   })
   .then(response => response.json())
   .then(data => {
-    messageHistory.push(`User : ${msg}`);
-    messageHistory.push(`ChatBot : ${data.choices[0].message.content}`);
+    messageHistory.push({ role: "user", content: msg });
+    messageHistory.push({ role: "assistant", content: data.choices[0].message.content });
+    redisClient.v4.set(guildId, JSON.stringify(messageHistory));
     message.reply(data.choices[0].message);
   })
   .catch(error => {
