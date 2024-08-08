@@ -16,7 +16,7 @@ const setPrompts = async (__dirname) => {
     if ("id" in prompt.default && "name" in prompt.default && "prompt" in prompt.default) {
       prompts = {
         ...prompts,
-        [prompt.default.id]: { name: prompt.default.name, prompt: prompt.default.prompt}
+        [prompt.default.id]: {...prompt.default}
       };
       promptOptions.push({ name: prompt.default.name, value: prompt.default.id });
     }

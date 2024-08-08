@@ -19,5 +19,5 @@ export async function execute(interaction, redisClient) {
 
   await redisClient.v4.set(`${guildId}_prompt`, global.prompts[selected].prompt);
   await redisClient.v4.del(`${guildId}`);
-  await interaction.reply(`프롬프트가 ${global.prompts[selected].name}(으)로 변경되었습니다.`);
+  await interaction.reply(`프롬프트가 ${global.prompts[selected].name}(으)로 변경되었습니다.${global.prompts[selected].caution ? "\n(⚠ " + global.prompts[selected].caution + ")" : ""}`);
 }
